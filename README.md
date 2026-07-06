@@ -48,7 +48,7 @@
 
 본 시스템은 단순한 에코(Echo) 서버를 넘어, 실제 상용 수준의 온라인 코딩 교육 및 알고리즘 저지(Judge) 플랫폼을 모사하기 위해 총 12개의 테이블로 정규화된 `coding_platform` 데이터베이스를 설계 및 구축했습니다. 각 테이블은 참조 무결성(Referential Integrity)과 비즈니스 로직의 안정성을 보장하도록 엄격한 제약조건을 포함합니다.
 
-![ERD Diagram](./images/ERD_Diagram.png)
+![ERD Diagram](ERD_Diagram.png)
 *(위 경로에 ERD 이미지를 삽입하세요)*
 
 ### 3.1. 사용자 및 학습 도메인
