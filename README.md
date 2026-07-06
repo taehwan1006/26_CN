@@ -380,13 +380,11 @@ DB 에러: Duplicate entry 'testID' for key 'user.PRIMARY'
 * 시연 종료 후 5초의 타임아웃이 경과하자 서버 측에서 `FIN` 패킷을 전송하여 연결을 안전하게 회수(Graceful Shutdown)하는 것을 확인했습니다.
 
 ### 7.2. HTTP/1.1 Keep-Alive (다중 요청 스트림)
-![Wireshark Keep-Alive](./images/wireshark_keep_alive.png)
-*(위 경로에 TCP Stream 캡처 이미지를 삽입하세요)*
+![Wireshark Keep-Alive](wireshark_keep_alive.png)
 * 패킷의 [Follow TCP Stream]을 확인한 결과, 응답 헤더에 `Connection: keep-alive`가 명확히 기재되어 있습니다.
-* 한 번의 TCP 연결 스트림 내부에서 POST, GET, PUT 등 여러 번의 HTTP 트랜잭션이 연속으로 이루어졌음을 검증하여 통신 효율성 확보를 증명했습니다.
 
 ### 7.3. Payload URL 인코딩 및 Content-Length 일치 여부
-![Wireshark Payload](./images/wireshark_payload.png)
+![Wireshark Payload](wireshark_payload.png)
 *(위 경로에 바디 데이터 인코딩 캡처 이미지를 삽입하세요)*
 * 클라이언트에서 전송한 한글 이름 `신태환`과 이메일의 특수문자 `@`가 원문이 아닌 `%EC%8B%A0%ED%83%9C%ED%99%98` 및 `%40`으로 변환되어 바이트 스트림에 실린 것을 확인했습니다.
 * 헤더의 `Content-Length` 값과 실제 전송된 바이트 길이가 정확히 일치하여, 패킷 조각화 과정에서 발생할 수 있는 데이터 손실이 없음을 증명했습니다.
