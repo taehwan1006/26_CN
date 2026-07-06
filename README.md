@@ -463,7 +463,6 @@ DB 에러: Duplicate entry 'testID' for key 'user.PRIMARY'
 
 ### 7.3. Payload URL 인코딩 및 Content-Length 일치 여부
 ![Wireshark Payload](wireshark_payload.png)
-*(위 경로에 바디 데이터 인코딩 캡처 이미지를 삽입하세요)*
 * 클라이언트에서 전송한 한글 이름 `신태환`과 이메일의 특수문자 `@`가 원문이 아닌 `%EC%8B%A0%ED%83%9C%ED%99%98` 및 `%40`으로 변환되어 바이트 스트림에 실린 것을 확인했습니다.
 * 헤더의 `Content-Length` 값과 실제 전송된 바이트 길이가 정확히 일치하여, 패킷 조각화 과정에서 발생할 수 있는 데이터 손실이 없음을 증명했습니다.
 
