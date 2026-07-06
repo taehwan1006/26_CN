@@ -28,6 +28,10 @@
 * **무결성 및 예외 처리:** DB 제약 조건(UNIQUE) 충돌 시 롤백(Rollback) 처리 및 적절한 HTTP 상태 코드(409 Conflict 등) 반환.
 * **데이터 인코딩 및 정제:** 클라이언트 전송 시 URL 인코딩 적용 및 수신 시 정규표현식을 활용한 HTML 태그 제거.
 
+### 1.3. 프로젝트 시연 영상
+본 프로젝트의 실제 구동 화면, 트러블슈팅, 그리고 Wireshark를 통한 패킷 검증 과정은 아래 유튜브 링크에서 확인하실 수 있습니다.
+    YouTube 링크: [https://youtu.be/zS5tefzHgF0]
+
 ---
 
 ## 2. 개발 환경 및 기술 스택
@@ -40,22 +44,49 @@
 
 ---
 
-## 3. 시스템 아키텍처 및 데이터베이스 설계
+## 3. 시스템 아키텍처 및 데이터베이스 설계 상세
 
-본 시스템은 온라인 코딩 교육 및 알고리즘 저지(Judge) 플랫폼을 모사하기 위해 총 12개의 테이블로 구성된 `coding_platform` 데이터베이스를 구축했습니다.
+본 시스템은 단순한 에코(Echo) 서버를 넘어, 실제 상용 수준의 온라인 코딩 교육 및 알고리즘 저지(Judge) 플랫폼을 모사하기 위해 총 12개의 테이블로 정규화된 `coding_platform` 데이터베이스를 설계 및 구축했습니다. 각 테이블은 참조 무결성(Referential Integrity)과 비즈니스 로직의 안정성을 보장하도록 엄격한 제약조건을 포함합니다.
 
-![ERD Diagram](ERD_Diagram.png)
+![ERD Diagram](./images/ERD_Diagram.png)
+*(위 경로에 ERD 이미지를 삽입하세요)*
 
-### 3.1. 핵심 엔티티 및 관계 설명
-1. **회원 식별 (USER 테이블)**
-   * 시스템의 코어 엔티티로 `role` 칼럼을 통해 STUDENT, INSTRUCTOR, ADMIN 권한을 구분합니다.
-   * `email` 칼럼에 `UNIQUE` 제약 조건을 설정하여, 중복 가입 시도 시 데이터베이스 단에서 무결성 에러를 발생시키도록 설계했습니다.
-2. **다대다 관계 해소 (COURSE & ENROLLMENT 테이블)**
-   * 학생과 강의 코스 간의 다대다(M:N) 관계를 해소하기 위해 `ENROLLMENT`(수강신청) 교차 테이블을 배치했습니다.
-   * `student_id`와 `course_id`를 복합 유니크 키(Composite Unique Key)로 묶어 중복 수강을 원천 차단했습니다.
-3. **온라인 저지 시스템 (CODING_PROBLEM & SUBMISSION 테이블)**
-   * `CODING_PROBLEM` 테이블에 밀리초 단위의 `time_limit`과 메가바이트 단위의 `memory_limit` 칼럼을 설계했습니다.
-   * `SUBMISSION` 테이블은 제출된 소스 코드와 함께 `TIME_LIMIT`, `COMPILE_ERROR`, `SUCCESS` 등의 채점 상태를 열거형(ENUM)으로 기록합니다.
+### 3.1. 사용자 및 학습 도메인
+1. **USER (사용자 테이블)**
+   * `user_id`를 기본키(PK)로 사용하며, `role` 칼럼을 `ENUM('ADMIN', 'INSTRUCTOR', 'STUDENT')`으로 지정하여 애플리케이션 계층에서의 권한 기반 라우팅(Authorization)을 지원합니다.
+   * `email` 칼럼에 `UNIQUE NOT NULL` 제약 조건을 설정하여, 중복 가입 트랜잭션 발생 시 데이터베이스 단에서 `IntegrityError`를 발생시키고 서버가 이를 캐치하여 `409 Conflict`로 응답하게 하는 핵심 기준점입니다.
+
+2. **CATEGORY (카테고리 테이블)**
+   * `parent_id`를 외래키(FK)로 가지는 인접 목록 모델(Adjacency List Model) 형태의 자기 참조(Self-Referencing) 구조입니다. 이를 통해 '개발 > 웹 개발 > 파이썬'과 같은 무한 뎁스의 트리(Tree)형 카테고리를 단일 테이블로 구현했습니다.
+
+3. **COURSE & LESSON (강의 및 레슨 테이블)**
+   * `COURSE`는 `instructor_id`를 FK로 가져 강사와 1:N 관계를 맺으며, 난이도를 `ENUM('BEGINNER', 'INTERMEDIATE', 'ADVANCED')`로 엄격히 통제합니다.
+   * `LESSON`은 개별 영상 단위로, 부모인 `COURSE`가 삭제될 경우 고아 데이터(Orphan Data)가 남지 않도록 `ON DELETE CASCADE` 옵션을 적용했습니다.
+
+4. **ENROLLMENT (수강신청 교차 테이블)**
+   * 학생(USER)과 강의(COURSE) 간의 다대다(M:N) 관계를 데이터베이스에서 논리적으로 해소하기 위한 교차 엔티티입니다.
+   * 핵심 제약조건으로 `UNIQUE(student_id, course_id)` 복합 유니크 키를 설정하여, 애플리케이션 단의 검증 로직 누락 시에도 동일 과목 중복 수강이 데이터베이스 레벨에서 원천 차단되도록 설계했습니다.
+
+5. **REVIEW (수강평 테이블)**
+   * `CHECK (rating BETWEEN 1 AND 5)` 제약 조건을 삽입하여, 평점 데이터가 1~5 사이의 정수만 적재되도록 무결성을 강제했습니다.
+
+### 3.2. 알고리즘 저지(Judge) 코어 도메인
+6. **CODING_PROBLEM (알고리즘 문제 테이블)**
+   * 단순 게시판 구조를 탈피하여, 알고리즘 채점 시스템의 명세에 맞춰 `time_limit`(밀리초 단위 시간 제한)과 `memory_limit`(메가바이트 단위 메모리 제한) 칼럼을 명시적으로 설계했습니다.
+
+7. **SUBMISSION (코드 제출 테이블)**
+   * 제출된 원시 소스 코드(`source_code`)와 프로그래밍 언어(`language`)를 저장합니다.
+   * `status` 칼럼은 `ENUM('SUCCESS', 'WRONG_ANSWER', 'TIME_LIMIT', 'MEMORY_LIMIT', 'COMPILE_ERROR')`으로 구성되어, 별도의 채점 워커(Worker) 프로세스가 동작한 후 상태를 비동기적으로 갱신할 수 있는 상용 저지 서버의 스키마를 모사했습니다.
+
+### 3.3. 결제, 보상 및 보안 도메인
+8. **BADGE & USER_BADGE (게이미피케이션 로직)**
+   * 특정 코스 수료 시 지급되는 뱃지를 관리하며, `course_id`에 `ON DELETE SET NULL`을 적용하여 코스가 삭제되어도 유저가 획득한 뱃지 이력은 보존되도록 유연하게 설계했습니다.
+
+9. **COUPON & PAYMENT (결제 트랜잭션)**
+   * `PAYMENT` 테이블의 `status`를 `ENUM('PAID', 'CANCELLED', 'FAILED')`로 관리하여 멱등성을 보장하는 결제 트랜잭션 처리가 가능하도록 구성했습니다.
+
+10. **AUDIT_LOG (감사 로그 테이블)**
+    * 데이터베이스 내에서 발생하는 사용자의 주요 변경 액션과 IP 주소를 기록하여, 시스템 침해 사고 발생 시 역추적이 가능하도록 보안성을 강화했습니다.
 
 ---
 
@@ -72,7 +103,7 @@ def run_server():
     server_socket.listen(5)
     print(f"[*] HTTP 서버 구동 완료 (포트 {PORT}) - HTTP/1.1 Keep-Alive 모드")
 
-    while True:
+    while True: # 메인 루프 (새로운 클라이언트 접속 대기)
         client_socket, addr = server_socket.accept()
         client_socket.settimeout(5.0) # 5초간 요청 대기 (타임아웃 설정)
         
@@ -82,90 +113,139 @@ def run_server():
                     request_data = client_socket.recv(4096).decode('utf-8')
                     if not request_data:
                         break
-                except socket.timeout:
-                    print(f"[-] 타임아웃 발생. 연결 종료: {addr}")
-                    break
-                # ... (이하 라우팅 로직)
 ```
-* **동작 원리:** 매 요청마다 소켓을 닫는 HTTP/1.0의 한계를 극복하기 위해, 클라이언트 접속 시 `settimeout(5.0)`을 부여하고 내부에 `while True` 루프를 배치했습니다. 이를 통해 단일 TCP 통로에서 다수의 HTTP 요청을 처리하여 네트워크 오버헤드를 감소시켰습니다.
+* **로직 분석:**
+* `SO_REUSEADDR`: 서버 스크립트를 재시작할 때 포트가 `TIME_WAIT` 상태에 빠져 바인딩이 거부되는 현상(Address already in use)을 방지합니다.
+* `listen(5)`: 최대 5개의 동시 접속 요청을 대기 큐(Backlog Queue)에 보관합니다.
+* **이중 while 루프와 settimeout:** 매 통신마다 3-Way Handshake를 반복하는 HTTP/1.0의 한계를 극복하기 위한 핵심 로직입니다. 클라이언트가 접속하면 소켓 수명(Timeout)을 5초로 설정하고 서브 루프에 진입합니다. 5초 이내에 추가 요청이 들어오면 기존 TCP 파이프라인을 재사용하여 처리(Keep-Alive)하며, 타임아웃 발생 시에만 `except socket.timeout` 블록으로 빠져나가 소켓을 우아하게 종료합니다.
 
-### 4.2. HTTP 패킷 파싱 로직
+
+### 4.2. HTTP 패킷 수동 파싱 알고리즘
+
 ```python
-lines = request_data.split('\r\n')
+# 1. 헤더와 본문 분리
+parts = request_data.split('\r\n\r\n', 1)
+header_section = parts[0]
+body_section = parts[1] if len(parts) > 1 else ""
+
+# 2. Request Line 파싱
+lines = header_section.split('\r\n')
 method, full_path, _ = lines[0].split(' ')
 
+# 3. URL 및 Query String 분리
 parsed_url = urllib.parse.urlparse(full_path)
 path = parsed_url.path
 query_params = urllib.parse.parse_qs(parsed_url.query)
 
+# 4. Content-Length 식별
 content_length = 0
-for line in lines:
+for line in lines[1:]:
     if line.lower().startswith('content-length:'):
         content_length = int(line.split(':')[1].strip())
         break
-```
-* **동작 원리:** 수신된 문자열을 HTTP 규약인 `\r\n` 단위로 분할합니다. 첫 줄에서 HTTP 메서드(GET, POST 등)와 경로를 추출하고, `urllib.parse`를 통해 URL과 쿼리 스트링을 분리합니다. 이후 헤더를 순회하며 `Content-Length`를 추출해 HTTP Body 처리의 기준값으로 삼습니다.
 
-### 4.3. 트랜잭션 제어 및 롤백 방어 (POST 메서드)
+```
+
+* **로직 분석:**
+* 수신된 바이트(Byte) 배열을 디코딩한 후, HTTP 메시지 구조의 규약인 이중 줄바꿈(`\r\n\r\n`)을 기준으로 헤더와 바디를 1차 분리합니다.
+* 헤더의 첫 줄(Request Line)을 공백 기준으로 쪼개어 HTTP 메서드(GET, POST 등)와 경로(`/api/users` 등)를 추출합니다.
+* `urllib.parse`를 활용해 GET 요청 시 동적으로 전달되는 쿼리 스트링(`?role=STUDENT`)을 딕셔너리 형태로 파싱합니다.
+* 헤더를 순회하며 `Content-Length`를 찾아내어, HTTP 바디의 무결성을 검증하고 정확한 페이로드 사이즈를 측정하는 기준으로 삼습니다.
+
+
+
+### 4.3. DB 트랜잭션 제어 (안전한 롤백 처리)
+
 ```python
 if method == "POST":
     try:
         sql = "INSERT INTO USER (user_id, email, name, role) VALUES (%s, %s, %s, %s)"
         cursor.execute(sql, (body_params['user_id'], body_params['email'], body_params['name'], body_params['role']))
         db_conn.commit()
-        response = build_response("201 Created", "회원 가입이 완료되었습니다.")
-    except pymysql.err.IntegrityError:
-        db_conn.rollback() # 무결성 에러 발생 시 즉시 롤백
-        response = build_response("409 Conflict", "이미 가입된 이메일 또는 아이디입니다.")
-```
-* **동작 원리:** 데이터 삽입 시도 중 `UNIQUE` 제약 조건(이메일 중복 등)에 의해 `IntegrityError`가 발생할 경우, 예외 처리 블록으로 이동합니다. 이때 `db_conn.rollback()`을 명시적으로 호출하여 데이터베이스의 오염을 막고, 프론트엔드로 `409 Conflict` 상태 코드를 반환하여 서버 다운을 방지합니다.
+        response = build_response("201 Created", f"유저 '{body_params['name']}' 등록 완료")
+    except pymysql.err.IntegrityError as e:
+        db_conn.rollback()
+        response = build_response("409 Conflict", "이미 존재하는 아이디이거나 사용 중인 이메일입니다.")
 
-### 4.4. 애플리케이션 단 보안 검증 (DELETE 메서드)
+```
+
+* **로직 분석:**
+* 파이썬 DB-API인 `PyMySQL`을 사용하여 SQL 쿼리를 실행합니다. 포맷 스트링(f-string) 대신 `%s` 바인딩 변수를 사용하여 SQL 인젝션(SQL Injection) 공격을 원천 방어합니다.
+* 데이터 삽입 중 이메일 또는 ID의 `UNIQUE` 제약 조건 충돌로 `IntegrityError`가 발생할 경우, 예외 처리 블록으로 이동하여 **반드시 `db_conn.rollback()`을 명시적으로 호출**합니다. 이를 통해 현재 세션의 트랜잭션 락(Lock)을 해제하고 데이터베이스의 오염을 방지하며, 클라이언트에게 상태 코드 `409 Conflict`를 안전하게 반환하여 서버 데드락을 방지합니다.
+
+
+
+### 4.4. 애플리케이션 단 보안 검증 라우팅 (DELETE)
+
 ```python
 elif method == "DELETE":
     if body_params['user_id'] == 'admin01':
-        response = build_response("403 Forbidden", "최고 관리자 계정은 삭제할 수 없습니다.")
+        response = build_response("403 Forbidden", "시스템 최고 관리자(ADMIN)는 삭제할 수 없습니다.")
     else:
         sql = "DELETE FROM USER WHERE user_id = %s"
         cursor.execute(sql, (body_params['user_id'],))
-        db_conn.commit()
-        response = build_response("200 OK", "계정이 삭제되었습니다.")
+        if cursor.rowcount > 0:
+            db_conn.commit()
+            response = build_response("200 OK", "계정이 안전하게 삭제되었습니다.")
+        else:
+            response = build_response("404 Not Found", "삭제할 대상을 찾을 수 없습니다.")
+
 ```
-* **동작 원리:** DELETE 요청이 들어왔을 때, 삭제 대상이 시스템 최고 관리자(`admin01`)인 경우 DB로 쿼리를 전송하지 않고 애플리케이션 계층에서 선제적으로 `403 Forbidden`을 반환하여 시스템을 보호합니다.
+
+* **로직 분석:**
+* DELETE 요청이 들어오면 데이터베이스로 쿼리를 무조건 전송하지 않습니다. Payload 내부의 `user_id`를 선제적으로 검증하여, 식별자가 `admin01`인 경우 DB 접근 이전에 애플리케이션 계층에서 `403 Forbidden`을 반환해 최고 권한 계정을 강제 보호합니다.
+* 또한 `cursor.rowcount` 속성을 검사하여 실제 삭제된 row가 0개일 경우, `404 Not Found`를 반환해 멱등성(Idempotency)에 기반한 상태 코드를 정확히 응답합니다.
 
 ---
 
 ## 5. 클라이언트 사이드 코드 상세 분석 (`client.py`)
 
-클라이언트 애플리케이션은 사용자가 서버와 양방향으로 소통할 수 있는 CLI(Command Line Interface) 관리자 콘솔 형태로 제작되었습니다.
+클라이언트 사이드 코드는 사용자가 터미널 환경에서 백엔드 서버와 직관적으로 소통할 수 있도록 CLI(Command Line Interface) 관리자 콘솔을 구현한 스크립트입니다.
 
-### 5.1. 데이터 인코딩 전송 (URL 인코딩)
+### 5.1. 전송 계층 페이로드(Payload) URL 인코딩
 ```python
-# 사용자 입력부
+# 사용자 입력 (CLI 환경)
 uid = input(" * 아이디(user_id): ").strip()
 email = input(" * 이메일(email): ").strip()
 name = input(" * 이름(name): ").strip()
 
-# 한글 및 특수문자 전송을 위한 URL 인코딩 적용
+# 한글 및 특수문자 전송을 위한 URL 인코딩(Percent-encoding) 적용
 body = f"user_id={urllib.parse.quote(uid)}&email={urllib.parse.quote(email)}&name={urllib.parse.quote(name)}"
 send_request("POST", "/api/users", body)
-```
-* **동작 원리:** HTTP 패킷 본문에 한글(`이름`)이나 특수문자(`@` 등)가 그대로 실릴 경우 인코딩 깨짐 현상이 발생할 수 있습니다. 이를 방지하기 위해 표준 규격인 `application/x-www-form-urlencoded`에 맞추어 `urllib.parse.quote()`를 적용, `%EC%8B` 형태의 문자열로 치환하여 전송합니다.
 
-### 5.2. 서버 응답 데이터 정제 (정규표현식)
+```
+
+* **로직 분석:**
+* HTTP 규약 상 본문(Body) 데이터에 영문 알파벳(ASCII)이 아닌 한글 이름(`신태환`)이나 이메일의 골뱅이(`@`) 등 특수문자가 날것(Raw)으로 실릴 경우, 네트워크 전송 중 바이트 손상(인코딩 깨짐)이 발생합니다.
+* 이를 방어하기 위해 `application/x-www-form-urlencoded` 전송 규격에 맞춰 파이썬 내장 함수인 `urllib.parse.quote()`를 일괄 적용했습니다. 이를 통해 한글 데이터가 네트워크 소켓을 탈 때 `%EC%8B%A0` 과 같은 안전한 Percent-encoding 텍스트 포맷으로 변환되어 송신 무결성을 확보합니다.
+
+
+
+### 5.2. 정규표현식을 활용한 수신 데이터 렌더링
+
 ```python
-# 서버 응답 수신 및 분할
+# 서버에서 수신한 원시 바이트 패킷 디코딩 및 분할
 parts = response.split('\r\n\r\n', 1)
 headers = parts[0]
 resp_body = parts[1] if len(parts) > 1 else ""
 
+# 상태 코드 라인 추출
 status_line = headers.split('\r\n')[0]
 
-# HTML 태그 제거 로직
+# 정규표현식을 통한 HTML 태그 클렌징(Cleansing)
 clean_body = resp_body.replace('<br>', '\n').replace('</p>', '\n')
 clean_body = re.sub(r'<[^>]+>', '', clean_body).strip()
+
+print(f"✅ [서버 응답 상태] {status_line}")
+print(f"📄 [서버 응답 본문]\n{clean_body}")
+
 ```
-* **동작 원리:** 서버가 HTTP 표준을 지키기 위해 응답 본문을 `<html><body>` 태그로 감싸서 보내면, 터미널 출력 시 가독성이 심각하게 저하됩니다. 이를 해결하기 위해 파이썬 `re` 모듈을 사용하여 `<[^>]+>` 정규식 패턴과 매치되는 모든 HTML 태그를 공백으로 치환하고 줄바꿈으로 변환했습니다.
+
+* **로직 분석:**
+* 서버에서 반환된 HTTP 메시지를 헤더(`headers`)와 바디(`resp_body`)로 분할합니다.
+* 백엔드 서버가 브라우저 환경을 고려하여 응답 본문을 `<html><body>` 태그로 래핑하여 전송하면, CLI 환경에서는 가독성이 심각하게 저하됩니다.
+* 파이썬의 정규표현식 모듈인 `re`를 도입하여, 패턴 `<[^>]+>`를 적용했습니다. 이는 `<` 문자로 시작하고 `>` 문자로 끝나는 모든 문자(HTML 태그)를 매칭하여 공백(`''`)으로 치환하는 강력한 클렌징 로직입니다.
+* 줄바꿈을 의미하는 `<br>`과 `</p>` 태그는 선제적으로 개행 문자(`\n`)로 치환하여, 터미널(Console) 환경에 최적화된 깔끔하고 정돈된 텍스트 뷰를 제공합니다.
 
 ---
 
