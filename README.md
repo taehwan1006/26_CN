@@ -375,8 +375,7 @@ DB 에러: Duplicate entry 'testID' for key 'user.PRIMARY'
 단순히 터미널에 텍스트가 뜨는 것을 넘어, 실제 네트워크 소켓에서 데이터가 규약에 맞게 전송되었는지 로컬호스트(루프백) 포트 9090을 캡처하여 검증했습니다.
 
 ### 7.1. TCP 3-Way Handshake 및 연결 해제 (Teardown)
-![Wireshark Handshake](./images/wireshark_handshake.png)
-*(위 경로에 3-Way Handshake 캡처 이미지를 삽입하세요)*
+![Wireshark Handshake](Wireshark_Handshake.png)
 * HTTP 통신 발생 직전, 클라이언트 포트와 서버 포트(9090) 간에 `SYN` ➔ `SYN, ACK` ➔ `ACK` 패킷이 교환되며 신뢰성 있는 TCP 연결이 성립됨을 확인했습니다.
 * 시연 종료 후 5초의 타임아웃이 경과하자 서버 측에서 `FIN` 패킷을 전송하여 연결을 안전하게 회수(Graceful Shutdown)하는 것을 확인했습니다.
 
