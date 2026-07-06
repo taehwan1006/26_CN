@@ -44,7 +44,7 @@
 
 본 시스템은 온라인 코딩 교육 및 알고리즘 저지(Judge) 플랫폼을 모사하기 위해 총 12개의 테이블로 구성된 `coding_platform` 데이터베이스를 구축했습니다.
 
-![ERD Diagram](./images/ERD_Diagram.png)
+![ERD Diagram](ERD_Diagram.png)
 *(위 경로에 ERD 이미지를 삽입하세요)*
 
 ### 3.1. 핵심 엔티티 및 관계 설명
